@@ -3,6 +3,7 @@ package jira
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/google/go-cmp/cmp"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -263,6 +264,28 @@ func TestIssueService_AddWorklogRecord(t *testing.T) {
 		TimeSpent: "1h",
 	}
 	record, _, err := testClient.Issue.AddWorklogRecord("10000", r)
+	if record == nil {
+		t.Error("Expected Record. Record is nil")
+	}
+	if err != nil {
+		t.Errorf("Error given: %s", err)
+	}
+}
+
+func TestIssueService_UpdateWorklogRecord(t *testing.T) {
+	setup()
+	defer teardown()
+	testMux.HandleFunc("/rest/api/2/issue/10000/worklog/1", func(w http.ResponseWriter, r *http.Request) {
+		testMethod(t, r, "PUT")
+		testRequestURL(t, r, "/rest/api/2/issue/10000/worklog/1")
+
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, `{"self":"http://www.example.com/jira/rest/api/2/issue/10000/worklog/1","author":{"self":"http://www.example.com/jira/rest/api/2/user?username=fred","name":"fred","displayName":"Fred F. User","active":false},"updateAuthor":{"self":"http://www.example.com/jira/rest/api/2/user?username=fred","name":"fred","displayName":"Fred F. User","active":false},"comment":"I did some work here.","updated":"2018-02-14T22:14:46.003+0000","visibility":{"type":"group","value":"jira-developers"},"started":"2018-02-14T22:14:46.003+0000","timeSpent":"3h 20m","timeSpentSeconds":12000,"id":"100028","issueId":"10002"}`)
+	})
+	r := &WorklogRecord{
+		TimeSpent: "1h",
+	}
+	record, _, err := testClient.Issue.UpdateWorklogRecord("10000", "1", r)
 	if record == nil {
 		t.Error("Expected Record. Record is nil")
 	}
@@ -538,6 +561,36 @@ func TestIssueService_PostAttachment_NoAttachment(t *testing.T) {
 	}
 }
 
+func TestIssueService_DeleteAttachment(t *testing.T) {
+	setup()
+	defer teardown()
+	testMux.HandleFunc("/rest/api/2/attachment/10054", func(w http.ResponseWriter, r *http.Request) {
+		testMethod(t, r, "DELETE")
+		testRequestURL(t, r, "/rest/api/2/attachment/10054")
+
+		w.WriteHeader(http.StatusNoContent)
+		fmt.Fprint(w, `{}`)
+	})
+
+	resp, err := testClient.Issue.DeleteAttachment("10054")
+	if resp.StatusCode != 204 {
+		t.Error("Expected attachment not deleted.")
+		if resp.StatusCode == 403 {
+			t.Error("User not permitted to delete attachment")
+		}
+		if resp.StatusCode == 404 {
+			t.Error("Attachment not found")
+		}
+	} else {
+		t.Log("Attachment deleted")
+	}
+	if err != nil {
+		t.Errorf("Error given: %s", err)
+	} else {
+		t.Log("No error")
+	}
+}
+
 func TestIssueService_Search(t *testing.T) {
 	setup()
 	defer teardown()
@@ -604,15 +657,15 @@ func TestIssueService_SearchPages(t *testing.T) {
 	defer teardown()
 	testMux.HandleFunc("/rest/api/2/search", func(w http.ResponseWriter, r *http.Request) {
 		testMethod(t, r, "GET")
-		if r.URL.String() == "/rest/api/2/search?jql=something&startAt=1&maxResults=2&expand=foo&fields=&validateQuery=warn" {
+		if r.URL.String() == "/rest/api/2/search?jql=something&startAt=1&maxResults=2&expand=foo&validateQuery=warn" {
 			w.WriteHeader(http.StatusOK)
 			fmt.Fprint(w, `{"expand": "schema,names","startAt": 1,"maxResults": 2,"total": 6,"issues": [{"expand": "html","id": "10230","self": "http://kelpie9:8081/rest/api/2/issue/BULK-62","key": "BULK-62","fields": {"summary": "testing","timetracking": null,"issuetype": {"self": "http://kelpie9:8081/rest/api/2/issuetype/5","id": "5","description": "The sub-task of the issue","iconUrl": "http://kelpie9:8081/images/icons/issue_subtask.gif","name": "Sub-task","subtask": true},"customfield_10071": null}},{"expand": "html","id": "10004","self": "http://kelpie9:8081/rest/api/2/issue/BULK-47","key": "BULK-47","fields": {"summary": "Cheese v1 2.0 issue","timetracking": null,"issuetype": {"self": "http://kelpie9:8081/rest/api/2/issuetype/3","id": "3","description": "A task that needs to be done.","iconUrl": "http://kelpie9:8081/images/icons/task.gif","name": "Task","subtask": false}}}]}`)
 			return
-		} else if r.URL.String() == "/rest/api/2/search?jql=something&startAt=3&maxResults=2&expand=foo&fields=&validateQuery=warn" {
+		} else if r.URL.String() == "/rest/api/2/search?jql=something&startAt=3&maxResults=2&expand=foo&validateQuery=warn" {
 			w.WriteHeader(http.StatusOK)
 			fmt.Fprint(w, `{"expand": "schema,names","startAt": 3,"maxResults": 2,"total": 6,"issues": [{"expand": "html","id": "10230","self": "http://kelpie9:8081/rest/api/2/issue/BULK-62","key": "BULK-62","fields": {"summary": "testing","timetracking": null,"issuetype": {"self": "http://kelpie9:8081/rest/api/2/issuetype/5","id": "5","description": "The sub-task of the issue","iconUrl": "http://kelpie9:8081/images/icons/issue_subtask.gif","name": "Sub-task","subtask": true},"customfield_10071": null}},{"expand": "html","id": "10004","self": "http://kelpie9:8081/rest/api/2/issue/BULK-47","key": "BULK-47","fields": {"summary": "Cheese v1 2.0 issue","timetracking": null,"issuetype": {"self": "http://kelpie9:8081/rest/api/2/issuetype/3","id": "3","description": "A task that needs to be done.","iconUrl": "http://kelpie9:8081/images/icons/task.gif","name": "Task","subtask": false}}}]}`)
 			return
-		} else if r.URL.String() == "/rest/api/2/search?jql=something&startAt=5&maxResults=2&expand=foo&fields=&validateQuery=warn" {
+		} else if r.URL.String() == "/rest/api/2/search?jql=something&startAt=5&maxResults=2&expand=foo&validateQuery=warn" {
 			w.WriteHeader(http.StatusOK)
 			fmt.Fprint(w, `{"expand": "schema,names","startAt": 5,"maxResults": 2,"total": 6,"issues": [{"expand": "html","id": "10230","self": "http://kelpie9:8081/rest/api/2/issue/BULK-62","key": "BULK-62","fields": {"summary": "testing","timetracking": null,"issuetype": {"self": "http://kelpie9:8081/rest/api/2/issuetype/5","id": "5","description": "The sub-task of the issue","iconUrl": "http://kelpie9:8081/images/icons/issue_subtask.gif","name": "Sub-task","subtask": true},"customfield_10071": null}}]}`)
 			return
@@ -936,6 +989,14 @@ func TestIssueFields_MarshalJSON_Success(t *testing.T) {
 			Self: "http://www.example.com/jira/rest/api/2/project/EX",
 			ID:   "10000",
 			Key:  "EX",
+		},
+		AffectsVersions: []*AffectsVersion{
+			&AffectsVersion{
+				ID:          "10705",
+				Name:        "2.1.0-rc3",
+				Self:        "http://www.example.com/jira/rest/api/2/version/10705",
+				ReleaseDate: "2018-09-30",
+			},
 		},
 	}
 
@@ -1308,31 +1369,128 @@ func TestIssueService_Delete(t *testing.T) {
 	}
 }
 
+func getTime(original time.Time) *Time {
+	jiraTime := Time(original)
+
+	return &jiraTime
+}
+
 func TestIssueService_GetWorklogs(t *testing.T) {
 	setup()
 	defer teardown()
-	testMux.HandleFunc("/rest/api/2/issue/10002/worklog", func(w http.ResponseWriter, r *http.Request) {
-		testMethod(t, r, "GET")
-		testRequestURL(t, r, "/rest/api/2/issue/10002/worklog")
 
-		fmt.Fprint(w, `{"startAt": 1,"maxResults": 40,"total": 1,"worklogs": [{"id": "3","self": "http://kelpie9:8081/rest/api/2/issue/10002/worklog/3","author":{"self":"http://www.example.com/jira/rest/api/2/user?username=fred","name":"fred","displayName":"Fred F. User","active":false},"updateAuthor":{"self":"http://www.example.com/jira/rest/api/2/user?username=fred","name":"fred","displayName":"Fred F. User","active":false},"created":"2016-03-16T04:22:37.356+0000","updated":"2016-03-16T04:22:37.356+0000","comment":"","started":"2016-03-16T04:22:37.356+0000","timeSpent": "1h","timeSpentSeconds": 3600,"issueId":"10002"}]}`)
-	})
-
-	worklog, _, err := testClient.Issue.GetWorklogs("10002")
-	if worklog == nil {
-		t.Error("Expected worklog. Worklog is nil")
+	tt := []struct {
+		name     string
+		response string
+		issueId  string
+		uri      string
+		worklog  *Worklog
+		err      error
+		option   *AddWorklogQueryOptions
+	}{
+		{
+			name:     "simple worklog",
+			response: `{"startAt": 1,"maxResults": 40,"total": 1,"worklogs": [{"id": "3","self": "http://kelpie9:8081/rest/api/2/issue/10002/worklog/3","author":{"self":"http://www.example.com/jira/rest/api/2/user?username=fred","name":"fred","displayName":"Fred F. User","active":false},"updateAuthor":{"self":"http://www.example.com/jira/rest/api/2/user?username=fred","name":"fred","displayName":"Fred F. User","active":false},"created":"2016-03-16T04:22:37.356+0000","updated":"2016-03-16T04:22:37.356+0000","comment":"","started":"2016-03-16T04:22:37.356+0000","timeSpent": "1h","timeSpentSeconds": 3600,"issueId":"10002"}]}`,
+			issueId:  "10002",
+			uri:      "/rest/api/2/issue/%s/worklog",
+			worklog: &Worklog{
+				StartAt:    1,
+				MaxResults: 40,
+				Total:      1,
+				Worklogs: []WorklogRecord{
+					{
+						Self: "http://kelpie9:8081/rest/api/2/issue/10002/worklog/3",
+						Author: &User{
+							Self:        "http://www.example.com/jira/rest/api/2/user?username=fred",
+							Name:        "fred",
+							DisplayName: "Fred F. User",
+						},
+						UpdateAuthor: &User{
+							Self:        "http://www.example.com/jira/rest/api/2/user?username=fred",
+							Name:        "fred",
+							DisplayName: "Fred F. User",
+						},
+						Created:          getTime(time.Date(2016, time.March, 16, 4, 22, 37, 356000000, time.UTC)),
+						Started:          getTime(time.Date(2016, time.March, 16, 4, 22, 37, 356000000, time.UTC)),
+						Updated:          getTime(time.Date(2016, time.March, 16, 4, 22, 37, 356000000, time.UTC)),
+						TimeSpent:        "1h",
+						TimeSpentSeconds: 3600,
+						ID:               "3",
+						IssueID:          "10002",
+					},
+				},
+			},
+		},
+		{
+			name:     "expanded worklog",
+			response: `{"startAt":1,"maxResults":40,"total":1,"worklogs":[{"id":"3","self":"http://kelpie9:8081/rest/api/2/issue/10002/worklog/3","author":{"self":"http://www.example.com/jira/rest/api/2/user?username=fred","name":"fred","displayName":"Fred F. User","active":false},"updateAuthor":{"self":"http://www.example.com/jira/rest/api/2/user?username=fred","name":"fred","displayName":"Fred F. User","active":false},"created":"2016-03-16T04:22:37.356+0000","updated":"2016-03-16T04:22:37.356+0000","comment":"","started":"2016-03-16T04:22:37.356+0000","timeSpent":"1h","timeSpentSeconds":3600,"issueId":"10002","properties":[{"key":"foo","value":{"bar":"baz"}}]}]}`,
+			issueId:  "10002",
+			uri:      "/rest/api/2/issue/%s/worklog?expand=properties",
+			worklog: &Worklog{
+				StartAt:    1,
+				MaxResults: 40,
+				Total:      1,
+				Worklogs: []WorklogRecord{
+					{
+						Self: "http://kelpie9:8081/rest/api/2/issue/10002/worklog/3",
+						Author: &User{
+							Self:        "http://www.example.com/jira/rest/api/2/user?username=fred",
+							Name:        "fred",
+							DisplayName: "Fred F. User",
+						},
+						UpdateAuthor: &User{
+							Self:        "http://www.example.com/jira/rest/api/2/user?username=fred",
+							Name:        "fred",
+							DisplayName: "Fred F. User",
+						},
+						Created:          getTime(time.Date(2016, time.March, 16, 4, 22, 37, 356000000, time.UTC)),
+						Started:          getTime(time.Date(2016, time.March, 16, 4, 22, 37, 356000000, time.UTC)),
+						Updated:          getTime(time.Date(2016, time.March, 16, 4, 22, 37, 356000000, time.UTC)),
+						TimeSpent:        "1h",
+						TimeSpentSeconds: 3600,
+						ID:               "3",
+						IssueID:          "10002",
+						Properties: []EntityProperty{
+							{
+								Key: "foo",
+								Value: map[string]interface{}{
+									"bar": "baz",
+								},
+							},
+						},
+					},
+				},
+			},
+			option: &AddWorklogQueryOptions{Expand: "properties"},
+		},
 	}
 
-	if len(worklog.Worklogs) != 1 {
-		t.Error("Expected 1 worklog")
-	}
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			uri := fmt.Sprintf(tc.uri, tc.issueId)
+			testMux.HandleFunc(uri, func(w http.ResponseWriter, r *http.Request) {
+				testMethod(t, r, "GET")
+				testRequestURL(t, r, uri)
+				_, _ = fmt.Fprint(w, tc.response)
+			})
 
-	if worklog.Worklogs[0].Author.Name != "fred" {
-		t.Error("Expected worklog author to be fred")
-	}
+			var worklog *Worklog
+			var err error
 
-	if err != nil {
-		t.Errorf("Error given: %s", err)
+			if tc.option != nil {
+				worklog, _, err = testClient.Issue.GetWorklogs(tc.issueId, WithQueryOptions(tc.option))
+			} else {
+				worklog, _, err = testClient.Issue.GetWorklogs(tc.issueId)
+			}
+
+			if err != nil && !cmp.Equal(err, tc.err) {
+				t.Errorf("unexpected error: %v", err)
+			}
+
+			if !cmp.Equal(worklog, tc.worklog) {
+				t.Errorf("unexpected worklog structure: %s", cmp.Diff(worklog, tc.worklog))
+			}
+		})
 	}
 }
 
@@ -1426,5 +1584,104 @@ func TestIssueService_Get_Fields_Changelog(t *testing.T) {
 
 	if ct, _ := issue.Changelog.Histories[0].CreatedTime(); !tm.Equal(ct) {
 		t.Errorf("Expected CreatedTime func return %v time, %v got", tm, ct)
+	}
+}
+
+func TestIssueService_Get_Transitions(t *testing.T) {
+	setup()
+	defer teardown()
+	testMux.HandleFunc("/rest/api/2/issue/10002", func(w http.ResponseWriter, r *http.Request) {
+		testMethod(t, r, "GET")
+		testRequestURL(t, r, "/rest/api/2/issue/10002")
+
+		fmt.Fprint(w, `{"expand":"renderedFields,names,schema,transitions,operations,editmeta,changelog,versionedRepresentations","id":"10002","self":"http://www.example.com/jira/api/latest/issue/10002","key":"EX-1","transitions":[{"id":"121","name":"Start","to":{"self":"http://www.example.com/rest/api/2/status/10444","description":"","iconUrl":"http://www.example.com/images/icons/statuses/inprogress.png","name":"In progress","id":"10444","statusCategory":{"self":"http://www.example.com/rest/api/2/statuscategory/4","id":4,"key":"indeterminate","colorName":"yellow","name":"In Progress"}}}]}`)
+	})
+
+	issue, _, _ := testClient.Issue.Get("10002", &GetQueryOptions{Expand: "transitions"})
+	if issue == nil {
+		t.Error("Expected issue. Issue is nil")
+	}
+
+	if len(issue.Transitions) != 1 {
+		t.Errorf("Expected one transition item, %v found", len(issue.Transitions))
+	}
+
+	transition := issue.Transitions[0]
+
+	if transition.Name != "Start" {
+		t.Errorf("Expected 'Start' transition to be available, got %q", transition.Name)
+	}
+
+	if transition.To.Name != "In progress" {
+		t.Errorf("Expected transition to lead to status 'In progress', got %q", transition.To.Name)
+	}
+}
+
+func TestIssueService_Get_Fields_AffectsVersions(t *testing.T) {
+	setup()
+	defer teardown()
+	testMux.HandleFunc("/rest/api/2/issue/10002", func(w http.ResponseWriter, r *http.Request) {
+		testMethod(t, r, "GET")
+		testRequestURL(t, r, "/rest/api/2/issue/10002")
+
+		fmt.Fprint(w, `{"fields":{"versions":[{"self":"http://www.example.com/jira/rest/api/2/version/10705","id":"10705","description":"test description","name":"2.1.0-rc3","archived":false,"released":false,"releaseDate":"2018-09-30"}]}}`)
+	})
+
+	issue, _, err := testClient.Issue.Get("10002", nil)
+	if issue == nil {
+		t.Error("Expected issue. Issue is nil")
+	}
+	if !reflect.DeepEqual(issue.Fields.AffectsVersions, []*AffectsVersion{
+		{
+			ID:          "10705",
+			Name:        "2.1.0-rc3",
+			Self:        "http://www.example.com/jira/rest/api/2/version/10705",
+			ReleaseDate: "2018-09-30",
+			Released:    false,
+			Archived:    false,
+			Description: "test description",
+		},
+	}) {
+		t.Error("Expected AffectsVersions for the returned issue")
+	}
+
+	if err != nil {
+		t.Errorf("Error given: %s", err)
+	}
+}
+
+func TestIssueService_GetRemoteLinks(t *testing.T) {
+	setup()
+	defer teardown()
+
+	testAPIEndpoint := "/rest/api/2/issue/123/remotelink"
+
+	raw, err := ioutil.ReadFile("./mocks/remote_links.json")
+	if err != nil {
+		t.Error(err.Error())
+	}
+
+	testMux.HandleFunc(testAPIEndpoint, func(w http.ResponseWriter, r *http.Request) {
+		testMethod(t, r, "GET")
+		testRequestURL(t, r, testAPIEndpoint)
+		fmt.Fprint(w, string(raw))
+	})
+
+	remoteLinks, _, err := testClient.Issue.GetRemoteLinks("123")
+
+	if err != nil {
+		t.Errorf("Got error: %v", err)
+	}
+
+	if remoteLinks == nil {
+		t.Error("Expected remote links list. Got nil.")
+	}
+
+	if len(*remoteLinks) != 2 {
+		t.Errorf("Expected 2 remote links. Got %d", len(*remoteLinks))
+	}
+
+	if !(*remoteLinks)[0].Object.Status.Resolved {
+		t.Errorf("First remote link object status should be resolved")
 	}
 }

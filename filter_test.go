@@ -10,14 +10,14 @@ import (
 func TestFilterService_GetList(t *testing.T) {
 	setup()
 	defer teardown()
-	testAPIEdpoint := "/rest/api/2/filter"
+	testAPIEndpoint := "/rest/api/2/filter"
 	raw, err := ioutil.ReadFile("./mocks/all_filters.json")
 	if err != nil {
 		t.Error(err.Error())
 	}
-	testMux.HandleFunc(testAPIEdpoint, func(writer http.ResponseWriter, request *http.Request) {
+	testMux.HandleFunc(testAPIEndpoint, func(writer http.ResponseWriter, request *http.Request) {
 		testMethod(t, request, "GET")
-		testRequestURL(t, request, testAPIEdpoint)
+		testRequestURL(t, request, testAPIEndpoint)
 		fmt.Fprint(writer, string(raw))
 	})
 
@@ -33,14 +33,14 @@ func TestFilterService_GetList(t *testing.T) {
 func TestFilterService_Get(t *testing.T) {
 	setup()
 	defer teardown()
-	testAPIEdpoint := "/rest/api/2/filter/10000"
+	testAPIEndpoint := "/rest/api/2/filter/10000"
 	raw, err := ioutil.ReadFile("./mocks/filter.json")
 	if err != nil {
 		t.Error(err.Error())
 	}
-	testMux.HandleFunc(testAPIEdpoint, func(writer http.ResponseWriter, request *http.Request) {
+	testMux.HandleFunc(testAPIEndpoint, func(writer http.ResponseWriter, request *http.Request) {
 		testMethod(t, request, "GET")
-		testRequestURL(t, request, testAPIEdpoint)
+		testRequestURL(t, request, testAPIEndpoint)
 		fmt.Fprintf(writer, string(raw))
 	})
 
@@ -57,14 +57,14 @@ func TestFilterService_Get(t *testing.T) {
 func TestFilterService_GetFavouriteList(t *testing.T) {
 	setup()
 	defer teardown()
-	testAPIEdpoint := "/rest/api/2/filter/favourite"
+	testAPIEndpoint := "/rest/api/2/filter/favourite"
 	raw, err := ioutil.ReadFile("./mocks/favourite_filters.json")
 	if err != nil {
 		t.Error(err.Error())
 	}
-	testMux.HandleFunc(testAPIEdpoint, func(writer http.ResponseWriter, request *http.Request) {
+	testMux.HandleFunc(testAPIEndpoint, func(writer http.ResponseWriter, request *http.Request) {
 		testMethod(t, request, "GET")
-		testRequestURL(t, request, testAPIEdpoint)
+		testRequestURL(t, request, testAPIEndpoint)
 		fmt.Fprint(writer, string(raw))
 	})
 
@@ -74,5 +74,53 @@ func TestFilterService_GetFavouriteList(t *testing.T) {
 	}
 	if err != nil {
 		t.Errorf("Error given: %s", err)
+	}
+}
+
+func TestFilterService_GetMyFilters(t *testing.T) {
+	setup()
+	defer teardown()
+	testAPIEndpoint := "/rest/api/3/filter/my"
+	raw, err := ioutil.ReadFile("./mocks/my_filters.json")
+	if err != nil {
+		t.Error(err.Error())
+	}
+	testMux.HandleFunc(testAPIEndpoint, func(writer http.ResponseWriter, request *http.Request) {
+		testMethod(t, request, "GET")
+		testRequestURL(t, request, testAPIEndpoint)
+		fmt.Fprint(writer, string(raw))
+	})
+
+	opts := GetMyFiltersQueryOptions{}
+	filters, _, err := testClient.Filter.GetMyFilters(&opts)
+	if err != nil {
+		t.Errorf("Error given: %s", err)
+	}
+	if filters == nil {
+		t.Errorf("Expected Filters, got nil")
+	}
+}
+
+func TestFilterService_Search(t *testing.T) {
+	setup()
+	defer teardown()
+	testAPIEndpoint := "/rest/api/3/filter/search"
+	raw, err := ioutil.ReadFile("./mocks/search_filters.json")
+	if err != nil {
+		t.Error(err.Error())
+	}
+	testMux.HandleFunc(testAPIEndpoint, func(writer http.ResponseWriter, request *http.Request) {
+		testMethod(t, request, "GET")
+		testRequestURL(t, request, testAPIEndpoint)
+		fmt.Fprint(writer, string(raw))
+	})
+
+	opt := FilterSearchOptions{}
+	filters, _, err := testClient.Filter.Search(&opt)
+	if err != nil {
+		t.Errorf("Error given: %s", err)
+	}
+	if filters == nil {
+		t.Errorf("Expected Filters, got nil")
 	}
 }
